@@ -1,0 +1,637 @@
+getwd()
+setwd('E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge')
+
+##
+
+# Install required packages/library
+
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(forecast)
+library(stats)
+library(graphics)
+library(tseries)
+
+
+
+# import all the datasets
+
+train<-read.csv("E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\yds_train2018.csv", as.is = T)
+
+promotion_expense <-read.csv("E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\promotional_expense.csv", as.is = T)
+
+holidaysU<-read.csv("E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\holidaysU.csv", as.is = T)
+
+options(scipen = 999)
+
+
+str(train)
+summary(train)
+
+data_monthly <- train%>%group_by(Year, Month, Product_ID, Country)%>%summarise(monthly_sales=sum(Sales))
+
+
+colnames(promotion_expense)
+
+colnames(promotion_expense)[4] <- "Product_ID"
+
+zstrain <- merge(x=data_monthly, y=promotion_expense,  all=TRUE)
+
+summary(zstrain)
+
+
+holidaysU$Holiday <- if_else(holidaysU$Holiday=="", 0,1)
+
+HD_monthly <- holidaysU%>%group_by(Country, Year, Month)%>%summarise(monthly_holidays=sum(Holiday))
+
+
+zstrain1 <- merge(x=zstrain, y=HD_monthly,  all.x=TRUE)
+
+zstrain1$monthly_holidays[is.na(zstrain1$monthly_holidays)] <- 0
+
+summary(zstrain1)
+
+
+zstrain2 <- zstrain1%>%mutate(expense_ratio=Expense_Price/monthly_sales*100)
+
+
+
+str(zstrain2)
+summary(zstrain2)
+write.csv(zstrain2, file="E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zstrain2.csv", row.names = F)
+
+
+#Splitting the date
+
+
+argP1 <- zstrain2%>%filter(Country=='Argentina' & Product_ID=="1")
+argP2 <- zstrain2%>%filter(Country=='Argentina' & Product_ID=="2")
+argP3 <- zstrain2%>%filter(Country=='Argentina' & Product_ID=="3")
+
+belP2 <- zstrain2%>%filter(Country=='Belgium' & Product_ID=="2")
+
+colP1 <- zstrain2%>%filter(Country=='Columbia' & Product_ID=="1")
+colP2 <- zstrain2%>%filter(Country=='Columbia' & Product_ID=="2")
+colP3 <- zstrain2%>%filter(Country=='Columbia' & Product_ID=="3")
+
+denP2 <- zstrain2%>%filter(Country=='Denmark' & Product_ID=="2")
+
+
+engP4 <- zstrain2%>%filter(Country=='England' & Product_ID=="4")
+engP5 <- zstrain2%>%filter(Country=='England' & Product_ID=="5")
+
+finP4 <- zstrain2%>%filter(Country=='Finland' & Product_ID=="4")
+
+
+
+
+
+## Time serier - Arima - Auto.Arima calculation
+
+
+
+# 1. Argentina with Product_ID 1
+
+summary(argP1)
+
+argP1_ts <- ts(argP1$monthly_sales,frequency=12,start=c(2013,1),end=c(2016,3))
+plot(argP1_ts, xlab="Time",ylab="Sales",bty="l")
+
+argP1_d1 <- diff(argP1_ts, differences = 1)
+plot.ts(argP1_d1)
+
+argP1_d2 <- diff(argP1_ts, differences = 2)
+plot.ts(argP1_d2)
+
+argP1_tss <- sqrt(argP1_ts)
+plot.ts(argP1_tss)
+
+adf.test(argP1_ts)
+adf.test(argP1_d1)
+adf.test(argP1_d2)
+
+
+
+acf(diff(argP1_d1, lag.max = 24))
+
+pacf(diff(argP1_d1, lag.max = 24))
+
+zsargP1a <- arima(argP1_ts, order = c(2,1,0))
+summary(zsargP1a)
+
+zsargP1aa <- auto.arima(argP1_ts, ic="aic")
+summary(zsargP1aa)
+
+ 
+
+zsargP1_for <- forecast(zsargP1a, h=12)  #selecting arima instead of auto.arima based on p value
+
+plot(forecast(zsargP1_for, shaded = TRUE, shadcols = "oldstyle"))
+
+acf(zsargP1_for$residuals, lag.max = 24)
+
+plot.ts(zsargP1_for$residuals)
+
+Box.test(zsargP1_for$residuals, lag=24, type="Ljung-Box")
+
+write.csv(zsargP1_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zsargP1_forecast.csv', row.names = F)
+
+
+
+
+
+# 2. Argentina with Product_ID 2
+
+summary(argP2)
+
+argP2_ts <- ts(argP2$monthly_sales,frequency=12,start=c(2013,1),end=c(2016,3))
+plot(argP2_ts, xlab="Time",ylab="Sales",bty="l")
+
+argP2_d1 <- diff(argP2_ts, differences = 1)
+plot.ts(argP2_d1)
+
+argP2_d2 <- diff(argP2_ts, differences = 2)
+plot.ts(argP2_d2)
+
+
+adf.test(argP2_ts)
+adf.test(argP2_d1)
+adf.test(argP2_d2)
+
+
+
+acf(diff(argP2_d1, lag.max = 24))
+
+pacf(diff(argP2_d1, lag.max = 24))
+
+zsargP2a <- arima(argP2_ts, order = c(3,1,0))
+summary(zsargP2a)
+
+zsargP2aa <- auto.arima(argP2_ts, ic="aic")
+summary(zsargP2aa)
+
+
+
+zsargP2_for <- forecast(zsargP2aa, h=12)  #selecting arima.auto instead of arima based on aic value
+
+plot(forecast(zsargP2_for, shaded = TRUE, shadcols = "oldstyle"))
+
+acf(zsargP2_for$residuals, lag.max = 24)
+
+plot.ts(zsargP2_for$residuals)
+
+Box.test(zsargP2_for$residuals, lag=24, type="Ljung-Box")
+
+write.csv(zsargP2_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zsargP2_forecast.csv', row.names = F)
+
+
+
+
+
+
+# 3. Argentina with Product_ID 3
+
+summary(argP3)
+
+argP3_ts <- ts(argP3$monthly_sales,frequency=12,start=c(2015,1),end=c(2016,12))
+plot(argP3_ts, xlab="Time",ylab="Sales",bty="l")
+
+argP3_tsl <- log(argP3_ts)
+plot.ts(argP3_tsl)
+
+argP3_d1 <- diff(argP3_tsl, differences = 1)
+plot.ts(argP3_d1)
+
+argP3_d2 <- diff(argP3_tsl, differences = 2)
+plot.ts(argP3_d2)
+
+
+adf.test(argP3_ts)
+adf.test(argP3_tsl)
+adf.test(argP3_d1)
+adf.test(argP3_d2)
+
+
+
+acf(diff(argP3_d1, lag.max = 24))
+
+pacf(diff(argP3_d1, lag.max = 24))
+
+zsargP3a <- arima(argP3_tsl, order = c(0,1,0))
+summary(zsargP3a)
+
+zsargP3aa <- auto.arima(argP3_tsl, ic="aic")
+summary(zsargP3aa)
+
+
+
+zsargP3_for <- forecast(zsargP3a, h=3)  #selecting arima instead of auto.arima based on curve - pdq value
+
+plot(forecast(zsargP3_for, shaded = TRUE, shadcols = "oldstyle"))
+
+acf(zsargP3_for$residuals, lag.max = 24)
+
+plot.ts(zsargP3_for$residuals)
+
+Box.test(zsargP3_for$residuals, lag=24, type="Ljung-Box")
+
+#zsargP3_for <- zsargP3_for%>%mutate(convert=exp(Point.Forecast))
+
+write.csv(zsargP3_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zsargP3_forecast.csv', row.names = F)
+
+
+
+
+
+# 4. Belgium with Product_ID 2
+
+summary(belP2)
+
+belP2_ts <- ts(belP2$monthly_sales,frequency=12,start=c(2013,1),end=c(2016,3))
+plot(belP2_ts, xlab="Time",ylab="Sales",bty="l")
+
+belP2_d1 <- diff(belP2_ts, differences = 1)
+plot.ts(belP2_d1)
+
+belP2_d2 <- diff(belP2_ts, differences = 2)
+plot.ts(belP2_d2)
+
+
+adf.test(belP2_ts)
+adf.test(belP2_d1)
+adf.test(belP2_d2)
+
+
+
+acf(diff(belP2_ts, lag.max = 24))
+
+pacf(diff(belP2_ts, lag.max = 24))
+
+zsbelP2a <- arima(belP2_ts, order = c(4,0,0))
+summary(zsbelP2a)
+
+zsbelP2aa <- auto.arima(belP2_ts, ic="aic")
+summary(zsbelP2aa)
+
+
+
+zsbelP2_for <- forecast(zsbelP2aa, h=12)  #selecting arima.auto instead of arima based on aic & pdq value
+
+plot(forecast(zsbelP2_for, shaded = TRUE, shadcols = "oldstyle"))
+
+acf(zsbelP2_for$residuals, lag.max = 24)
+
+plot.ts(zsbelP2_for$residuals)
+
+Box.test(zsbelP2_for$residuals, lag=24, type="Ljung-Box")
+
+write.csv(zsbelP2_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zsbelP2_forecast.csv', row.names = F)
+
+
+
+
+# 5. Columbia with Product_ID 1
+
+summary(colP1)
+
+colP1_ts <- ts(colP1$monthly_sales,frequency=12,start=c(2013,1),end=c(2016,3))
+plot(colP1_ts, xlab="Time",ylab="Sales",bty="l")
+
+colP1_d1 <- diff(colP1_ts, differences = 1)
+plot.ts(colP1_d1)
+
+colP1_d2 <- diff(colP1_ts, differences = 2)
+plot.ts(colP1_d2)
+
+adf.test(colP1_ts)
+adf.test(colP1_d1)
+adf.test(colP1_d2)
+
+
+
+acf(diff(colP1_d2, lag.max = 24))
+
+pacf(diff(colP1_d2, lag.max = 24))
+
+zscolP1a <- arima(colP1_ts, order = c(3,2,0))
+summary(zscolP1a)
+
+zscolP1aa <- auto.arima(colP1_ts, ic="aic")
+summary(zscolP1aa)
+
+
+
+zscolP1_for <- forecast(zscolP1aa, h=12)  #selecting auto.arima instead of arima based on aic and p value
+
+plot(forecast(zscolP1_for, shaded = TRUE, shadcols = "oldstyle"))
+
+acf(zscolP1_for$residuals, lag.max = 24)
+
+plot.ts(zscolP1_for$residuals)
+
+Box.test(zscolP1_for$residuals, lag=24, type="Ljung-Box")
+
+write.csv(zscolP1_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zscolP1_forecast.csv', row.names = F)
+
+
+
+
+
+
+
+# 6. Columbia with Product_ID 2
+
+summary(colP2)
+
+colP2_ts <- ts(colP2$monthly_sales,frequency=12,start=c(2013,1),end=c(2016,3))
+plot(colP2_ts, xlab="Time",ylab="Sales",bty="l")
+
+colP2_d1 <- diff(colP2_ts, differences = 1)
+plot.ts(colP2_d1)
+
+colP2_d2 <- diff(colP2_ts, differences = 2)
+plot.ts(colP2_d2)
+
+
+adf.test(colP2_ts)
+adf.test(colP2_d1)
+adf.test(colP2_d2)
+
+
+
+acf(diff(colP2_d1, lag.max = 24))
+
+pacf(diff(colP2_d1, lag.max = 24))
+
+zscolP2a <- arima(colP2_ts, order = c(2,1,0))
+summary(zscolP2a)
+
+zscolP2aa <- auto.arima(colP2_ts, ic="aic")
+summary(zscolP2aa)
+
+
+
+zscolP2_for <- forecast(zscolP2aa, h=12)  #selecting arima.auto instead of arima based on aic & pdq value
+
+plot(forecast(zscolP2_for, shaded = TRUE, shadcols = "oldstyle"))
+
+acf(zscolP2_for$residuals, lag.max = 24)
+
+plot.ts(zscolP2_for$residuals)
+
+Box.test(zscolP2_for$residuals, lag=24, type="Ljung-Box")
+
+write.csv(zscolP2_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zscolP2_forecast.csv', row.names = F)
+
+
+
+
+# 7. Columbia with Product_ID 3
+
+summary(colP3)
+
+colP3_ts <- ts(colP3$monthly_sales,frequency=12,start=c(2014,9),end=c(2016,12))
+plot(colP3_ts, xlab="Time",ylab="Sales",bty="l")
+
+colP3_tsl <- log(colP3_ts)
+plot.ts(colP3_tsl)
+
+colP3_d1 <- diff(colP3_tsl, differences = 1)
+plot.ts(colP3_d1)
+
+colP3_d2 <- diff(colP3_tsl, differences = 2)
+plot.ts(colP3_d2)
+
+
+adf.test(colP3_ts)
+adf.test(colP3_tsl)
+adf.test(colP3_d1)
+adf.test(colP3_d2)
+
+
+
+acf(diff(colP3_d2, lag.max = 24))
+
+pacf(diff(colP3_d2, lag.max = 24))
+
+zscolP3a <- arima(colP3_tsl, order = c(2,2,0))
+summary(zscolP3a)
+
+zscolP3aa <- auto.arima(colP3_tsl, ic="aic")
+summary(zscolP3aa)
+
+
+
+zscolP3_for <- forecast(zscolP3a, h=3)  #selecting arima instead of auto.arima based on curve pdq  and p value
+
+plot(forecast(zscolP3_for, shaded = TRUE, shadcols = "oldstyle"))
+
+acf(zscolP3_for$residuals, lag.max = 24)
+
+plot.ts(zscolP3_for$residuals)
+
+Box.test(zscolP3_for$residuals, lag=24, type="Ljung-Box")
+
+#zscolP3_for <- zscolP3_for%>%mutate(convert=exp(Point.Forecast))
+
+write.csv(zscolP3_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zscolP3_forecast.csv', row.names = F)
+
+
+
+
+
+
+# 8. Denmark with Product_ID 2
+
+summary(denP2)
+
+denP2_ts <- ts(denP2$monthly_sales,frequency=12,start=c(2013,1),end=c(2016,3))
+plot(denP2_ts, xlab="Time",ylab="Sales",bty="l")
+
+denP2_d1 <- diff(denP2_ts, differences = 1)
+plot.ts(denP2_d1)
+
+denP2_d2 <- diff(denP2_ts, differences = 2)
+plot.ts(denP2_d2)
+
+
+adf.test(denP2_ts)
+adf.test(denP2_d1)
+adf.test(denP2_d2)
+
+
+
+acf(diff(denP2_d2, lag.max = 24))
+
+pacf(diff(denP2_d2, lag.max = 24))
+
+zsdenP2a <- arima(denP2_d2, order = c(2,0,0))
+summary(zsdenP2a)
+
+zsdenP2aa <- auto.arima(denP2_ts, ic="aic")
+summary(zsdenP2aa)
+
+
+
+zsdenP2_for <- forecast(zsdenP2aa, h=12)  #selecting arima.auto instead of arima based on p value
+
+plot(forecast(zsdenP2_for, shaded = TRUE, shadcols = "oldstyle"))
+
+acf(zsdenP2_for$residuals, lag.max = 24)
+
+plot.ts(zsdenP2_for$residuals)
+
+Box.test(zsdenP2_for$residuals, lag=24, type="Ljung-Box")
+
+write.csv(zsdenP2_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zsdenP2_forecast.csv', row.names = F)
+
+
+
+
+
+
+# 9. England with Product_ID 4
+
+summary(engP4)
+
+engP4_ts <- ts(engP4$monthly_sales,frequency=12,start=c(2013,1),end=c(2015,10))
+plot(engP4_ts, xlab="Time",ylab="Sales",bty="l")
+
+engP4_d1 <- diff(engP4_ts, differences = 1)
+plot.ts(engP4_d1)
+
+engP4_d2 <- diff(engP4_ts, differences = 2)
+plot.ts(engP4_d2)
+
+adf.test(engP4_ts)
+adf.test(engP4_d1)
+adf.test(engP4_d2)
+
+
+
+acf(diff(engP4_ts, lag.max = 24))
+
+pacf(diff(engP4_ts, lag.max = 24))
+
+zsengP4a <- arima(engP4_ts, order = c(3,0,0))
+summary(zsengP4a)
+
+zsengP4aa <- auto.arima(engP4_ts, ic="aic")
+summary(zsengP4aa)
+
+
+
+zsengP4_for <- forecast(zsengP4a, h=9)  #selecting arima instead of arima.arima based on aic, p and pdp value
+
+plot(forecast(zsengP4_for, shaded = TRUE, shadengs = "oldstyle"))
+
+acf(zsengP4_for$residuals, lag.max = 24)
+
+plot.ts(zsengP4_for$residuals)
+
+Box.test(zsengP4_for$residuals, lag=24, type="Ljung-Box")
+
+write.csv(zsengP4_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zsengP4_forecast.csv', row.names = F)
+
+
+
+
+
+
+# 10. England with Product_ID 5
+
+
+summary(engP5)
+
+engP5_ts <- ts(engP5$monthly_sales,frequency=12,start=c(2013,1),end=c(2015,10))
+plot(engP5_ts, xlab="Time",ylab="Sales",bty="l")
+
+engP5_d1 <- diff(engP5_ts, differences = 1)
+plot.ts(engP5_d1)
+
+engP5_d2 <- diff(engP5_ts, differences = 2)
+plot.ts(engP5_d2)
+
+
+adf.test(engP5_ts)
+adf.test(engP5_d1)
+adf.test(engP5_d2)
+
+
+
+acf(diff(engP5_d1, lag.max = 24))
+
+pacf(diff(engP5_d1, lag.max = 24))
+
+zsengP5a <- arima(engP5_ts, order = c(2,1,0))
+summary(zsengP5a)
+
+zsengP5aa <- auto.arima(engP5_ts, ic="aic")
+summary(zsengP5aa)
+
+
+
+zsengP5_for <- forecast(zsengP5aa, h=9)  #selecting arima.auto instead of arima based on aic & pdq value
+
+plot(forecast(zsengP5_for, shaded = TRUE, shadengs = "oldstyle"))
+
+acf(zsengP5_for$residuals, lag.max = 24)
+
+plot.ts(zsengP5_for$residuals)
+
+Box.test(zsengP5_for$residuals, lag=24, type="Ljung-Box")
+
+write.csv(zsengP5_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zsengP5_forecast.csv', row.names = F)
+
+
+
+
+
+# 11. Finland with Product_ID 4
+
+
+summary(finP4)
+
+finP4_ts <- ts(finP4$monthly_sales,frequency=12,start=c(2013,1),end=c(2015,10))
+plot(finP4_ts, xlab="Time",ylab="Sales",bty="l")
+
+finP4_d1 <- diff(finP4_ts, differences = 1)
+plot.ts(finP4_d1)
+
+finP4_d2 <- diff(finP4_ts, differences = 2)
+plot.ts(finP4_d2)
+
+
+adf.test(finP4_ts)
+adf.test(finP4_d1)
+adf.test(finP4_d2)
+
+
+
+acf(diff(finP4_ts, lag.max = 24))
+
+pacf(diff(finP4_ts, lag.max = 24))
+
+zsfinP4a <- arima(finP4_ts, order = c(1,0,0))
+summary(zsfinP4a)
+
+zsfinP4aa <- auto.arima(finP4_ts, ic="aic")
+summary(zsfinP4aa)
+
+
+
+zsfinP4_for <- forecast(zsfinP4aa, h=9)  #selecting arima.auto instead of arima based on aic & pdq value
+
+plot(forecast(zsfinP4_for, shaded = TRUE, shadfins = "oldstyle"))
+
+acf(zsfinP4_for$residuals, lag.max = 24)
+
+plot.ts(zsfinP4_for$residuals)
+
+Box.test(zsfinP4_for$residuals, lag=24, type="Ljung-Box")
+
+write.csv(zsfinP4_for, file='E:\\Jayaraj Books\\Data Scientist\\ZS\\Challenge\\zsfinP4_forecast.csv', row.names = F)
+
+
+###Summarized the final submission file in csv file
